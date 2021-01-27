@@ -10,12 +10,14 @@ sys.path.append('../lot')
 from utils import generate_gmm_data, kmeans
 from latentot import LatentOT
 
+n_components, n_dim = 10, 2
+X = generate_gmm_data(n_components, n_dimensions=2).float()
+Y = generate_gmm_data(n_components, n_dimensions=2).float()
 
-X = generate_gmm_data(n_components=4, n_dimensions=2).float()
-Y = generate_gmm_data(n_components=4, n_dimensions=2).float()
-
-lot = LatentOT(X, Y, 4, 4, 50, 50, 50)
+lot = LatentOT(X, Y, n_components, n_components, 50, 50, 50, device=torch.device('cuda'))
 px, py, pz, zx, zy = lot.fit(max_iter=1000)
+px, py, pz, zx, zy = px.cpu(), py.cpu(), pz.cpu(), zx.cpu(), zy.cpu()
+X, Y = X.cpu(), Y.cpu()
 
 fig, ax = plt.subplots(1, 1, figsize=(10, 10))
 ax.scatter(X[:, 0], X[:, 1], c='b', zorder=10)

@@ -46,7 +46,7 @@ class LatentOT(object):
         """
         self.device = device
         assert x.shape[1] == y.shape[1], "dimension of inputs not match"
-        self.x, self.y = x, y
+        self.x, self.y = x.to(device), y.to(device)
         self.tol = 1e-5
         self.n_max_iter = 1e5
         self.n_anchors_x = n_anchors_x
@@ -57,32 +57,29 @@ class LatentOT(object):
         self.eps_x = eps_x
         self.eps_y = eps_y
         self.eps_z = eps_z
-        self._k_source = None
-        self._k_target = None
-        self._k_anchor = None
         self.n_source = x.shape[0]
         self.n_target = y.shape[0]
 
         # measures of X and Y
         # TODO: use simplex uniform distribution now, better solution needed
-        self.mu = uniform_distribution(self.n_source)
-        self.nu = uniform_distribution(self.n_target)
+        self.mu = uniform_distribution(self.n_source).to(device)
+        self.nu = uniform_distribution(self.n_target).to(device)
 
         # Mahalanobis weight matrix
         if m_x is None:
-            self.m_x = torch.eye(self.n_dim)
+            self.m_x = torch.eye(self.n_dim, device=device)
         else:
-            self.m_x = m_x
+            self.m_x = m_x.to(device)
 
         if m_y is None:
-            self.m_y = torch.eye(self.n_dim)
+            self.m_y = torch.eye(self.n_dim, device=device)
         else:
-            self.m_y = m_y
+            self.m_y = m_y.to(device)
 
         if m_z is None:
-            self.m_z = torch.eye(self.n_dim)
+            self.m_z = torch.eye(self.n_dim, device=device)
         else:
-            self.m_z = m_z
+            self.m_z = m_z.to(device)
 
         # Intermediate parameters
         self.plan_x = None
@@ -99,13 +96,13 @@ class LatentOT(object):
         :param y: MxD target data samples
         :return:
         """
-        x_labels, x_anchors = kmeans(x, num_clusters=self.n_anchors_x)
-        y_labels, y_anchors = kmeans(y, num_clusters=self.n_anchors_y)
-        self.plan_x = F.one_hot(x_labels).float()
-        self.plan_y = torch.transpose(F.one_hot(y_labels).float(), 0, 1)
-        self.plan_z = torch.eye(self.n_anchors_x, self.n_anchors_y)
-        self.mu_z = x_labels.float().histc(bins=self.n_anchors_x)
-        self.nu_z = y_labels.float().histc(bins=self.n_anchors_y)
+        x_labels, x_anchors = kmeans(x, num_clusters=self.n_anchors_x, device=self.device)
+        y_labels, y_anchors = kmeans(y, num_clusters=self.n_anchors_y, device=self.device)
+        self.plan_x = F.one_hot(x_labels).float().to(self.device)
+        self.plan_y = torch.transpose(F.one_hot(y_labels).float(), 0, 1).to(self.device)
+        self.plan_z = torch.eye(self.n_anchors_x, self.n_anchors_y, device=self.device)
+        self.mu_z = x_labels.float().histc(bins=self.n_anchors_x).to(self.device)
+        self.nu_z = y_labels.float().histc(bins=self.n_anchors_y).to(self.device)
 
     def first_order_condition(self, x, y):
         """
@@ -198,11 +195,6 @@ class LatentOT(object):
                                    (beta_z * torch.transpose(kernel_z, 0, 1).matmul(alpha_z)))
             beta_z = self.nu_z / torch.transpose(kernel_z, 0, 1).matmul(alpha_z)
             alpha_y = self.nu_z / kernel_y.matmul(beta_y)
-
-            # Update the elements
-            # alpha_x, beta_x = _alpha_x, _beta_x
-            # alpha_y, beta_y = _alpha_y, _beta_y
-            # alpha_z, beta_z = _alpha_z, _beta_z
 
             iterations += 1
             # TODO: converging state?
